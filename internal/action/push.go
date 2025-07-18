@@ -1,19 +1,20 @@
-package internal
+package action
 
 import (
 	"encoding/json"
+	"gdriveSync/utils"
 	"log"
 	"os"
-	"path/filepath"
 	"path"
+	"path/filepath"
 )
 
-type PushPayload struct {
-	data map[string]interface{}
+type PushAction struct {
+	Data     map[string]interface{}
+	PathChan chan string
 }
-var data = make(map[string]interface{})
 
-func Push() error {
+func (p *PushAction) Action() error {
 	cd, err := os.Getwd()
 	if err != nil {
 		log.Printf("Error getting current directory: %v", err)
@@ -32,13 +33,17 @@ func Push() error {
 		return nil
 	}
 	defer file.Close()
-
-	err = json.NewDecoder(file).Decode(&data)
+	err = json.NewDecoder(file).Decode(&p.Data)
 	if err != nil {
 		log.Printf("Error decoding init file: %v", err)
 		return nil
 	}
-	version, ok := data["version"].(int)
+	log.Printf("Init file data: %v", p.Data)
+	if p.Data == nil {
+		log.Println("No data found in init file")
+		return nil
+	}
+	version, ok := p.Data["version"].(int)
 	if !ok {
 		log.Println("Version not found in init file")
 		return nil
@@ -46,7 +51,7 @@ func Push() error {
 	log.Printf("Pushing data with version: %v", version)
 	var curr_data map[string]interface{}
 	if version != 0 {
-		curr_data, ok = data["data"].(map[string]interface{})
+		curr_data, ok = p.Data["data"].(map[string]interface{})
 		if !ok {
 			log.Println("Data not found in init file")
 			return nil
@@ -54,13 +59,14 @@ func Push() error {
 	} else {
 		curr_data = make(map[string]interface{})
 	}
-	WatchDirectory(curr_data)
+	p.WatchDirectory(curr_data)
 	log.Printf("Current data: %v", curr_data)
 
 	return nil
 }
 
-func WatchDirectory(data map[string]interface{}) {
+func (p *PushAction) WatchDirectory(data map[string]interface{}) {
+	defer close(p.PathChan)
 	newVersion := make(map[string]interface{})
 	log.Println("Watching directory for changes...")
 	filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
@@ -73,7 +79,7 @@ func WatchDirectory(data map[string]interface{}) {
 			return nil
 		}
 		log.Printf("File found: %s", path)
-		hash, err := createHash(path)
+		hash, err := utils.CreateHash(path)
 		if err != nil {
 			log.Printf("Error creating hash for file %s: %v", path, err)
 			return err
@@ -85,7 +91,7 @@ func WatchDirectory(data map[string]interface{}) {
 		} else {
 			log.Printf("File %s has changed or is new.", path)
 		}
-
+		p.PathChan <- path
 		newVersion[path] = hash
 		return nil
 	})

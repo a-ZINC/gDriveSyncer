@@ -1,4 +1,4 @@
-package internal
+package utils
 
 import (
 	"crypto/sha256"
@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func createHash(path string) (string, error) {
+func CreateHash(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
