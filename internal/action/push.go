@@ -61,12 +61,16 @@ func (p *PushAction) Action() error {
 		return nil
 	}
 	log.Printf("Pushing data with version: %v", version)
-	var curr_data map[string]interface{}
+	curr_data := make(map[string]interface{})
 	if version != 0 {
-		curr_data, ok = p.Data["ver"].(map[string]interface{})
+		val, ok := p.Data[strconv.Itoa(version)].(map[string]interface{})
 		if !ok {
-			log.Println("Data not found in init file")
+			log.Printf("Error converting data to map for version %d", version)
 			return nil
+		}
+		for k, v := range val {
+			curr_data[k] = v
+			log.Printf("Current data for version %d: %s = %v", version, k, v)
 		}
 	}
 	p.WatchDirectory(curr_data, version)

@@ -15,6 +15,7 @@ type UploadService struct {
 }
 
 func (p *UploadService) Upload(path string, version int, hash string) error {
+	ver := strconv.Itoa(version + 1)
 	f, err := os.Open(path)
 	if err != nil {
 		log.Printf("Error opening file for upload: %v", err)
@@ -27,19 +28,13 @@ func (p *UploadService) Upload(path string, version int, hash string) error {
 		return err
 	}
 	log.Printf("File uploaded successfully: %s", file.Id)
-	ver := strconv.Itoa(version + 1)
-	if p.Data == nil {
-		log.Println("Data map is nil, initializing...")
-		p.Data = make(map[string]interface{})
+	versionMap, ok := p.Data[ver].(map[string]interface{})
+	if !ok {
+		versionMap = make(map[string]interface{})
+		p.Data[ver] = versionMap
+		log.Printf("Adding new version %s to init file", ver)
 	}
-	newMap, ok := p.Data[ver].( map[string]interface{})
-	if !ok || newMap == nil {
-		log.Printf("Error converting data to map for version %s", ver)
-		newMap = make(map[string]interface{})
-		p.Data[ver] = newMap
-	}
-	newMap[path] = hash
-	log.Printf("Updated version for %s to %d", path, version)
+	versionMap[path] = hash
 	return nil
 }
 
@@ -56,6 +51,19 @@ func (p *UploadService) UpdateWithVersion() error {
 		log.Printf("Error decoding init file: %v", err)
 		return err
 	}
+	version, ok := tempData["version"].(string)
+	if !ok {
+		log.Println("Version not found in init file, initializing to 0")
+		version = "0"
+	}
+	ver, err := strconv.Atoi(version)
+	if err != nil {
+		log.Printf("Error converting version to int: %v", err)
+		return err
+	}
+	verString := strconv.Itoa(ver + 1)
+	tempData["version"] = verString
+	log.Printf("Incremented version to: %s", verString)
 	for k, v := range p.Data {
 		if _, exists := tempData[k]; !exists {
 			tempData[k] = v

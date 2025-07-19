@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"os"
 )
@@ -21,5 +22,5 @@ func CreateHash(path string) (string, error) {
 	if n == 0 {
 		return "", nil // Return empty hash for empty files
 	}
-	return string(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
