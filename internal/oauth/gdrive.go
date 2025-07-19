@@ -14,23 +14,22 @@ import (
 func DriveClient() (*drive.Service, error) {
 	credentialPath := "credentials.json"
 	if _, err := os.Stat(credentialPath); os.IsNotExist(err) {
-		log.Printf("Credentials file does not exist at: %s", credentialPath)
 		return nil, fmt.Errorf("credentials file not found")
 	}
 	data, err := os.ReadFile(credentialPath)
 	if err != nil {
-		log.Printf("Error reading credentials file: %v", err)
 		return nil, err
 	}
 	cfg, err := google.ConfigFromJSON(data, drive.DriveFileScope)
 	if err != nil {
-		log.Printf("Error creating config from JSON: %v", err)
 		return nil, err
 	}
-	client := GetClient(cfg)
+	client, err := GetClient(cfg)
+	if err != nil {
+		return nil, err
+	}
 	srv, err := drive.NewService(context.Background(), option.WithHTTPClient(client))
 	if err != nil {
-		log.Printf("Error creating Drive service: %v", err)
 		return nil, err
 	}
 	log.Println("Drive service created successfully")

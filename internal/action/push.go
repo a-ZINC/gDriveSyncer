@@ -2,6 +2,7 @@ package action
 
 import (
 	"encoding/json"
+	"gdriveSync/cmd"
 	"gdriveSync/utils"
 	"log"
 	"os"
@@ -81,28 +82,40 @@ func (p *PushAction) Action() error {
 
 func (p *PushAction) WatchDirectory(data map[string]interface{}, version int) {
 	defer close(p.PathChan)
-	log.Println("Watching directory for changes...")
+	if cmd.Verbose {
+		log.Println("Verbose mode enabled. Watching directory for changes...")
+	}
 	filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			log.Printf("Error walking directory: %v", err)
+			if cmd.Verbose {
+				log.Printf("Error walking directory: %v", err)
+			}
 			return err
 		}
 		if d.IsDir() {
-			log.Printf("Directory found: %s", path)
+			if cmd.Verbose {
+				log.Printf("Skipping directory: %s", path)
+			}
 			return nil
 		}
-		log.Printf("File found: %s", path)
 		hash, err := utils.CreateHash(path)
 		if err != nil {
 			log.Printf("Error creating hash for file %s: %v", path, err)
 			return err
 		}
-		log.Printf("Hash for file %s: %s", path, hash)
+		if cmd.Verbose {
+			log.Printf("File: %s, Hash: %s", path, hash)
+		}
 		existingHash, exists := data[path]
 		if exists && existingHash == hash {
-			log.Printf("File %s has not changed.", path)
+			if cmd.Verbose {
+				log.Printf("File %s has not changed, skipping upload.", path)
+			}
+			return nil
 		} else {
-			log.Printf("File %s has changed or is new.", path)
+			if cmd.Verbose {
+				log.Printf("File %s has changed, preparing for upload.", path)
+			}
 		}
 		p.PathChan <- &Chann{
 			Path:    path,
@@ -111,5 +124,4 @@ func (p *PushAction) WatchDirectory(data map[string]interface{}, version int) {
 		}
 		return nil
 	})
-	log.Println("Directory watching not implemented yet.")
 }
