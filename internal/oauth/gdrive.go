@@ -3,7 +3,6 @@ package oauth
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
 	"golang.org/x/oauth2/google"
@@ -32,6 +31,5 @@ func DriveClient() (*drive.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Drive service created successfully")
 	return srv, nil
 }

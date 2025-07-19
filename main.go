@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"gdriveSync/cmd"
 	"gdriveSync/internal/action"
 	"gdriveSync/internal/oauth"
 	"gdriveSync/internal/worker"
+	"gdriveSync/utils"
 	"log"
 	"os"
 	"sync"
@@ -20,15 +22,18 @@ func main() {
 		act = &action.InitAction{}
 		err := act.Action()
 		if err != nil {
-			log.Printf("Error executing init action: %v", err)
-			return
+			fmt.Printf("❌ %s%sERROR:%s Init action failed: %s%s%v%s",
+				utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+			os.Exit(1)
 		}
-		log.Println("Initialization complete.")
+		fmt.Printf("✅ %s%sInitialization complete.%s", utils.Green, utils.Bold, utils.Reset)
 		os.Exit(1)
 	}
 
 	if cmd.Push {
-		log.Println("Starting push action...")
+		if cmd.Verbose {
+			log.Println("Push action initiated.")
+		}
 		go func() {
 			act = &action.PushAction{
 				Data:     make(map[string]interface{}),
@@ -36,16 +41,20 @@ func main() {
 			}
 			err := act.Action()
 			if err != nil {
-				log.Printf("Error executing push action: %v", err)
-				return
+				fmt.Printf("💥 %s%sFATAL:%s Push action crashed: %s%s%v%s",
+					utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+				os.Exit(1)
 			}
 		}()
-		log.Println("Push action completed successfully.")
+		if cmd.Verbose {
+			log.Println("Push action completed.")
+		}
 	}
 
 	service, err := oauth.DriveClient()
 	if err != nil {
-		log.Printf("Error creating Drive client: %v", err)
+		fmt.Printf("🔒 %s%sAUTH FAILED:%s Cannot create Drive client: %s%s%v%s",
+			utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
 		os.Exit(1)
 	}
 	uploadService := &worker.UploadService{DriveService: service, Data: make(map[string]interface{})}
@@ -57,12 +66,12 @@ func main() {
 		go func() {
 			defer wg.Done()
 			for path := range pathChannel {
-				err := uploadService.Upload(path.Path, path.Version, path.Hash)
+				err := uploadService.Upload(path.Path, path.Version, path.Hash, path.IsChanged)
 				if err != nil {
-					log.Printf("Error uploading file %s: %v", path.Path, err)
+					fmt.Printf("▶ %s%sFAILED:%s File %s%s%s could not be uploaded: %s%s%v%s",
+						utils.Yellow, utils.Bold, utils.Reset, utils.Cyan, path.Path, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
 					continue
 				}
-				log.Printf("File %s uploaded successfully with version %d", path.Path, path.Version)
 			}
 		}()
 	}
@@ -70,7 +79,8 @@ func main() {
 	log.Println("All uploads completed. Updating version in init file...")
 	err = uploadService.UpdateWithVersion()
 	if err != nil {
-		log.Printf("Error updating version in init file: %v", err)
-		return
+		fmt.Printf("⚠️  %s%sVERSION UPDATE FAILED:%s Could not update init file: %s%s%v%s",
+			utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+		os.Exit(1)
 	}
 }

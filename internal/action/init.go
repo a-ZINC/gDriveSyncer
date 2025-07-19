@@ -2,7 +2,6 @@ package action
 
 import (
 	"encoding/json"
-	"gdriveSync/cmd"
 	"log"
 	"os"
 	"path"
@@ -17,9 +16,6 @@ var initData = map[string]interface{}{
 func (i *InitAction) Action() error {
 	cd, err := os.Getwd()
 	if err != nil {
-		if cmd.Verbose {
-			log.Printf("Error getting current directory: %v", err)
-		}
 		return err
 	}
 
@@ -28,18 +24,12 @@ func (i *InitAction) Action() error {
 	if os.IsNotExist(err) {
 		file, err := os.Create(initFilePath)
 		if err != nil {
-			if cmd.Verbose {
-				log.Printf("Error creating init file: %v", err)
-			}
 			return err
 		}
 		defer file.Close()
 		log.Printf("Init file created at: %s", initFilePath)
 		jsonContent, err := json.MarshalIndent(initData, "", "  ")
 		if err != nil {
-			if cmd.Verbose {
-				log.Printf("Error marshalling init data to JSON: %v", err)
-			}
 			return err
 		}
 		file.WriteString(string(jsonContent))

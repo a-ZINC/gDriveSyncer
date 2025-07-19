@@ -2,7 +2,9 @@ package worker
 
 import (
 	"encoding/json"
+	"fmt"
 	"gdriveSync/cmd"
+	"gdriveSync/utils"
 	"log"
 	"os"
 	"strconv"
@@ -15,25 +17,36 @@ type UploadService struct {
 	Data         map[string]interface{}
 }
 
-func (p *UploadService) Upload(path string, version int, hash string) error {
+func (p *UploadService) Upload(path string, version int, hash string, isChanged bool) error {
 
 	ver := strconv.Itoa(version + 1)
-	f, err := os.Open(path)
-	if err != nil {
-		if cmd.Verbose {
-			log.Printf("Error opening file %s for upload: %v", path, err)
+
+	if isChanged {
+		f, err := os.Open(path)
+		if err != nil {
+			if cmd.Verbose {
+				log.Printf("Error opening file %s for upload: %v", path, err)
+			}
+			return err
 		}
-		return err
-	}
-	_, err = p.DriveService.Files.Create(&drive.File{
-		Name: path,
-	}).Media(f).Do()
-	if err != nil {
-		if cmd.Verbose {
-			log.Printf("Error uploading file %s: %v", path, err)
+		_, err = p.DriveService.Files.Create(&drive.File{
+			Name: path,
+		}).Media(f).Do()
+		if err != nil {
+			if cmd.Verbose {
+				log.Printf("Error uploading file %s: %v", path, err)
+			}
+			return err
 		}
-		return err
+		fmt.Printf("%s%s▶ SUCCESS:%s File %s%s%s uploaded!\n",
+			utils.Green, utils.Bold, utils.Reset,
+			utils.Cyan, path, utils.Reset)
+	} else {
+		fmt.Printf("%s%s▶ SKIPPED:%s File %s%s%s not changed!\n",
+			utils.Green, utils.Bold, utils.Reset,
+			utils.Cyan, path, utils.Reset)
 	}
+
 	versionMap, ok := p.Data[ver].(map[string]interface{})
 	if !ok {
 		versionMap = make(map[string]interface{})
