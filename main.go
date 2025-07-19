@@ -4,16 +4,16 @@ import (
 	"gdriveSync/cmd"
 	"gdriveSync/internal/action"
 	"gdriveSync/internal/oauth"
-	"gdriveSync/internal/worker"
+	"gdriveSync/internal/worker"	
 	"log"
-	"sync"
+	// "sync"
 )
 
 func main() {
 	var act action.Actions
-	pathChannel := make(chan string, 3)
-	numOfWorkers := 3
-	wg := &sync.WaitGroup{}
+	pathChannel := make(chan *action.Chann, 3)
+	// numOfWorkers := 3
+	// wg := &sync.WaitGroup{}
 	cmd.Execute()
 
 	if cmd.Create {
@@ -30,15 +30,17 @@ func main() {
 
 	if cmd.Push {
 		log.Println("Starting push action...")
-		act = &action.PushAction{
+		go func() {
+			act = &action.PushAction{
 			Data:     make(map[string]interface{}),
 			PathChan: pathChannel,
-		}
-		err := act.Action()
-		if err != nil {
-			log.Printf("Error executing push action: %v", err)
-			return
-		}
+			}
+			err := act.Action()
+			if err != nil {
+				log.Printf("Error executing push action: %v", err)
+				return
+			}
+		}()
 		log.Println("Push action completed successfully.")
 	}
 	log.Println("Starting upload workers...")
@@ -48,18 +50,13 @@ func main() {
 		log.Printf("Error creating Drive client: %v", err)
 		return
 	}
-	uploadService := &worker.UploadService{DriveService: service}
-	for i := 0; i < numOfWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for path := range pathChannel {
-				err := uploadService.Upload(path)
-				if err != nil {
-					log.Printf("Error uploading file %s: %v", path, err)
-				}
-			}
-		}()
+	uploadService := &worker.UploadService{DriveService: service, Data: make(map[string]interface{})}
+	for path := range pathChannel {
+		err := uploadService.Upload(path.Path, path.Version, path.Hash)
+		if err != nil {
+			log.Printf("Error uploading file %s: %v", path.Path, err)
+		}
+		log.Printf("File %s uploaded successfully with version %d", path.Path, path.Version)
 	}
-	wg.Wait()
+	uploadService.UpdateWithVersion()
 }

@@ -7,11 +7,18 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 )
+
+type Chann struct {
+	Path    string
+	Version int
+	Hash    string
+}
 
 type PushAction struct {
 	Data     map[string]interface{}
-	PathChan chan string
+	PathChan chan *Chann
 }
 
 func (p *PushAction) Action() error {
@@ -43,31 +50,33 @@ func (p *PushAction) Action() error {
 		log.Println("No data found in init file")
 		return nil
 	}
-	version, ok := p.Data["version"].(int)
+	ver, ok := p.Data["version"]
 	if !ok {
 		log.Println("Version not found in init file")
+		return nil
+	}
+	version, err := strconv.Atoi(ver.(string))
+	if err != nil {
+		log.Printf("Error converting version to int: %v", err)
 		return nil
 	}
 	log.Printf("Pushing data with version: %v", version)
 	var curr_data map[string]interface{}
 	if version != 0 {
-		curr_data, ok = p.Data["data"].(map[string]interface{})
+		curr_data, ok = p.Data["ver"].(map[string]interface{})
 		if !ok {
 			log.Println("Data not found in init file")
 			return nil
 		}
-	} else {
-		curr_data = make(map[string]interface{})
 	}
-	p.WatchDirectory(curr_data)
+	p.WatchDirectory(curr_data, version)
 	log.Printf("Current data: %v", curr_data)
 
 	return nil
 }
 
-func (p *PushAction) WatchDirectory(data map[string]interface{}) {
+func (p *PushAction) WatchDirectory(data map[string]interface{}, version int) {
 	defer close(p.PathChan)
-	newVersion := make(map[string]interface{})
 	log.Println("Watching directory for changes...")
 	filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -91,8 +100,11 @@ func (p *PushAction) WatchDirectory(data map[string]interface{}) {
 		} else {
 			log.Printf("File %s has changed or is new.", path)
 		}
-		p.PathChan <- path
-		newVersion[path] = hash
+		p.PathChan <- &Chann{
+			Path:    path,
+			Version: version,
+			Hash:    hash,
+		}
 		return nil
 	})
 	log.Println("Directory watching not implemented yet.")
