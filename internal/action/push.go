@@ -1,13 +1,11 @@
 package action
 
-import (
-	"encoding/json"
+import (	
 	"fmt"
 	"gdriveSync/cmd"
 	"gdriveSync/utils"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 )
@@ -17,60 +15,39 @@ type Chann struct {
 	Version int
 	Hash    string
 	IsChanged bool
+	FileId string
 }
 
 type PushAction struct {
-	Data     map[string]interface{}
+	Drive     *utils.Drive
 	PathChan chan *Chann
 }
 
 func (p *PushAction) Action() error {
-	cd, err := os.Getwd()
+	err := p.Drive.ExtractInitData()
 	if err != nil {
-		return err
-	}
-
-	initFilePath := path.Join(cd, "gdrive_init.json")
-	_, err = os.Stat(initFilePath)
-	if os.IsNotExist(err) {
-		return err
-	}
-	file, err := os.Open(initFilePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	err = json.NewDecoder(file).Decode(&p.Data)
-	if err != nil {
-		return err
-	}
-	if p.Data == nil {
-		return err
-	}
-	ver, ok := p.Data["version"]
-	if !ok {
-		return fmt.Errorf("version not found in init file")
-	}
-	version, err := strconv.Atoi(ver.(string))
-	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract init data: %w", err)
 	}
 	curr_data := make(map[string]interface{})
-	if version != 0 {
-		val, ok := p.Data[strconv.Itoa(version)].(map[string]interface{})
+	if p.Drive.Version != 0 {
+		val, ok := utils.GetMap(p.Drive.Data, strconv.Itoa(p.Drive.Version))
 		if !ok {
-			return fmt.Errorf("no data found for version %d", version)
+			return fmt.Errorf("version %d not found in init data", p.Drive.Version)
 		}
 		for k, v := range val {
 			curr_data[k] = v
 		}
 	}
-	p.WatchDirectory(curr_data, version)
+	p.WatchDirectory(curr_data, p.Drive.Version)
 	return nil
 }
 
 func (p *PushAction) WatchDirectory(data map[string]interface{}, version int) {
 	defer close(p.PathChan)
+	var (
+		pathFileId string
+		pathHash string
+	)
 	if cmd.Verbose {
 		log.Println("Verbose mode enabled. Watching directory for changes...")
 	}
@@ -89,18 +66,23 @@ func (p *PushAction) WatchDirectory(data map[string]interface{}, version int) {
 		}
 		hash, err := utils.CreateHash(path)
 		if err != nil {
-			log.Printf("Error creating hash for file %s: %v", path, err)
 			return err
 		}
 		if cmd.Verbose {
 			log.Printf("File: %s, Hash: %s", path, hash)
 		}
-		existingHash, exists := data[path]
+
+		fileMap, exists := utils.GetMap(data, path)
+		if exists {
+			pathFileId = fileMap["fileId"].(string)
+			pathHash = fileMap["hash"].(string)
+		}
 		p.PathChan <- &Chann{
 			Path:    path,
 			Version: version,
 			Hash:    hash,
-			IsChanged: !exists || existingHash != hash,
+			IsChanged: !exists || pathHash != hash,
+			FileId: pathFileId,
 		}
 		return nil
 	})

@@ -13,14 +13,17 @@ import (
 )
 
 type UploadService struct {
-	DriveService *drive.Service
-	Data         map[string]interface{}
+	Service *drive.Service
+	Data    map[string]interface{}
+}
+type fileData struct {
+	Hash   string `json:"hash"`
+	FileId string `json:"fileId"`
 }
 
-func (p *UploadService) Upload(path string, version int, hash string, isChanged bool) error {
-
+func (p *UploadService) Upload(path string, version int, hash string, isChanged bool, fileId string, folderId string) error {
 	ver := strconv.Itoa(version + 1)
-
+	var file *drive.File
 	if isChanged {
 		f, err := os.Open(path)
 		if err != nil {
@@ -29,8 +32,9 @@ func (p *UploadService) Upload(path string, version int, hash string, isChanged 
 			}
 			return err
 		}
-		_, err = p.DriveService.Files.Create(&drive.File{
-			Name: path,
+		file, err = p.Service.Files.Create(&drive.File{
+			Name:    path,
+			Parents: []string{folderId},
 		}).Media(f).Do()
 		if err != nil {
 			if cmd.Verbose {
@@ -46,13 +50,14 @@ func (p *UploadService) Upload(path string, version int, hash string, isChanged 
 			utils.Green, utils.Bold, utils.Reset,
 			utils.Cyan, path, utils.Reset)
 	}
-
-	versionMap, ok := p.Data[ver].(map[string]interface{})
-	if !ok {
-		versionMap = make(map[string]interface{})
-		p.Data[ver] = versionMap
+	if file != nil {
+		fileId = file.Id
 	}
-	versionMap[path] = hash
+	versionMap := utils.IfExistElseCreate(p.Data, ver)
+	versionMap[path] = &fileData{
+		Hash:    hash,
+		FileId: fileId,
+	}
 	return nil
 }
 
