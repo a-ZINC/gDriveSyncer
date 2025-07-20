@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -36,7 +35,6 @@ func GetCurrentDirectoryMap(data map[string]interface{}, version string, wd stri
     fullPath = filepath.Clean(fullPath)
 	newMap, ok := RecursiveGetMap(data, version, wd)
 	if !ok {
-		fmt.Printf("No map found for version %s in current directory %s\n", version, wd)
 		return nil, false
 	}
 

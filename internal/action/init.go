@@ -3,6 +3,7 @@ package action
 import (
 	"encoding/json"
 	"fmt"
+	"gdriveSync/cmd"
 	"gdriveSync/utils"
 	"log"
 	"os"
@@ -11,11 +12,11 @@ import (
 	"google.golang.org/api/drive/v3"
 )
 
-type InitAction struct{
+type InitAction struct {
 	Service *drive.Service
 }
 type BaseInit struct {
-	Version int    `json:"version"`
+	Version int `json:"version"`
 }
 
 func (i *InitAction) Action() error {
@@ -32,7 +33,9 @@ func (i *InitAction) Action() error {
 			return err
 		}
 		defer file.Close()
-		log.Printf("Init file created at: %s", initFilePath)
+		if cmd.Verbose {
+			log.Printf("Creating new init file at: %s", initFilePath)
+		}
 
 		initData := BaseInit{
 			Version: 0,

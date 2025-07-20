@@ -1,6 +1,9 @@
 package utils
 
 func IfExistElseCreate(obj map[string]interface{}, key string) map[string]interface{} {
+	if obj == nil {
+		obj = make(map[string]interface{})
+	}
 	if val, ok := obj[key]; ok {
 		if m, ok := val.(map[string]interface{}); ok {
 			return m

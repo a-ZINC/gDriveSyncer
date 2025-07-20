@@ -9,6 +9,8 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+
+	"google.golang.org/api/drive/v3"
 )
 
 type Chann struct {
@@ -72,46 +74,16 @@ func (p *PushAction) WatchDirectory(version string) {
 		folder, _ := p.Stack.Peek()
 
 		if d.IsDir() {
-			folderId := ""
-			folder, ok := p.Stack.Peek()
-			if ok {
-				folderId = folder.FolderId
-			}
-			file, err := utils.CreateFolder(p.InitData.Service, d.Name(), folderId)
-			if err != nil {
-				if cmd.Verbose {
-					log.Printf("Error creating folder %s: %v", fullPath, err)
-				}
-				return err
-			}
-			fmt.Printf("📂 %s%sFolder created in InitData: %s%s%s\n",
-				utils.Green, utils.Bold, utils.Cyan, file.Name, utils.Reset)
-			if wd == fullPath {
-				newMap := utils.IfExistElseCreate(p.InitData.NewInitData, version)
-				val := utils.IfExistElseCreate(newMap, fullPath)
-				if val["folderId"] == nil {
-					val["folderId"] = file.Id
-				}
-			} else {
-				newMap, ok := utils.GetCurrentDirectoryMap(p.InitData.NewInitData, version, wd, fullPath)
-				if !ok {
-					log.Printf("Failed to get current directory map for %s", fullPath)
-					return fmt.Errorf("failed to get current directory map for %s", fullPath)
-				}
-				if newMap["folderId"] == nil {
-					newMap["folderId"] = file.Id
-				}
-			}
-			p.Stack.Push(FolderStack{
-				FolderId:  file.Id,
-				Directory: fullPath,
-			})
+			p.FolderCreate(fullPath, version, wd, d)
 			return nil
 		}
+
 		directory := filepath.Dir(fullPath)
 		_, flag := p.PopIfDirectoryDiffer(directory)
 		if !flag {
-			log.Printf("Directory %s popped from stack.", directory)
+			if cmd.Verbose {
+				log.Printf("Directory %s not found in stack, skipping file %s", directory, fullPath)
+			}
 		}
 
 		hash, err := utils.CreateHash(fullPath)
@@ -122,10 +94,12 @@ func (p *PushAction) WatchDirectory(version string) {
 			log.Printf("File: %s, Hash: %s", fullPath, hash)
 		}
 		dir, file := path.Split(fullPath)
-		oldMap, exists := utils.GetCurrentDirectoryMap(p.InitData.OldInitData, version, wd, dir)
+		ver := strconv.Itoa(p.InitData.Version)
+		oldMap, exists := utils.GetCurrentDirectoryMap(p.InitData.OldInitData, ver, wd, dir)
+		oldMap = utils.IfExistElseCreate(oldMap, file)
 		if exists {
-			pathHash, _ = oldMap[file].(string)
-			pathFileId, _ = oldMap[file].(string)
+			pathHash, _ = oldMap["hash"].(string)
+			pathFileId, _ = oldMap["fileId"].(string)
 		}
 		p.PathChan <- &Chann{
 			Dir:       dir,
@@ -165,4 +139,67 @@ func (p *PushAction) PopIfDirectoryDiffer(directory string) (*FolderStack, bool)
 			log.Printf("Popped item: %s, Directory: %s", item.Directory, directory)
 		}
 	}
+}
+
+func (p *PushAction) FolderCreate(fullPath string, version string, wd string, d os.DirEntry) error {
+
+	folderId := ""
+	folder, ok := p.Stack.Peek()
+	if ok {
+		folderId = folder.FolderId
+	}
+
+	currentVersion := strconv.Itoa(p.InitData.Version)
+	oldMap, exists := utils.GetCurrentDirectoryMap(p.InitData.OldInitData, currentVersion, wd, fullPath)
+
+	var existingFolderId string
+	if exists {
+		if folderIdVal, ok := oldMap["folderId"]; ok {
+			existingFolderId, _ = folderIdVal.(string)
+		}
+	}
+
+	var file *drive.File
+	var err error
+
+	if existingFolderId != "" {
+		if cmd.Verbose {
+			log.Printf("Folder %s already exists with ID: %s", d.Name(), existingFolderId)
+		}
+		file = &drive.File{
+			Id:   existingFolderId,
+			Name: d.Name(),
+		}
+	} else {
+		file, err = utils.CreateFolder(p.InitData.Service, d.Name(), folderId)
+		if err != nil {
+			if cmd.Verbose {
+				log.Printf("Error creating folder %s: %v", fullPath, err)
+			}
+			return err
+		}
+		fmt.Printf("📂 %s%sFolder created: %s%s%s\n",
+			utils.Green, utils.Bold, utils.Cyan, file.Name, utils.Reset)
+	}
+
+	if wd == fullPath {
+		newMap := utils.IfExistElseCreate(p.InitData.NewInitData, version)
+		val := utils.IfExistElseCreate(newMap, fullPath)
+		if val["folderId"] == nil {
+			val["folderId"] = file.Id
+		}
+	} else {
+		newMap, ok := utils.GetCurrentDirectoryMap(p.InitData.NewInitData, version, wd, fullPath)
+		if !ok {
+			return fmt.Errorf("failed to get current directory map for %s", fullPath)
+		}
+		if newMap["folderId"] == nil {
+			newMap["folderId"] = file.Id
+		}
+	}
+	p.Stack.Push(FolderStack{
+		FolderId:  file.Id,
+		Directory: fullPath,
+	})
+	return nil
 }

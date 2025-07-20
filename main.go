@@ -91,7 +91,7 @@ func main() {
 		}()
 	}
 	wg.Wait()
-	log.Println("All uploads completed. Updating version in init file...")
+	fmt.Printf("✅ %s%sUpload completed.%s", utils.Green, utils.Bold, utils.Reset)
 	err = uploadService.UpdateWithVersion()
 	if err != nil {
 		fmt.Printf("⚠️  %s%sVERSION UPDATE FAILED:%s Could not update init file: %s%s%v%s",
