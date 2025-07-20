@@ -11,7 +11,11 @@ import (
 )
 
 func DriveClient() (*drive.Service, error) {
-	credentialPath := "credentials.json"
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	credentialPath := home + "/.gdrive/credentials.json"
 	if _, err := os.Stat(credentialPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("credentials file not found")
 	}

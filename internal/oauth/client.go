@@ -17,17 +17,8 @@ func GetClient(config *oauth2.Config) (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokDirectory := home + "/.credentials_gdrive"
-	if _, err := os.Stat(tokDirectory); os.IsNotExist(err) {
-		err = os.MkdirAll(tokDirectory, 0700)
-		if err != nil {
-			return nil, err
-		}
-		if cmd.Verbose {
-			log.Printf("Token directory created at: %s", tokDirectory)
-		}
-	}
-	tokFile := tokDirectory + "/gdrive_token.json"
+	tokDirectory := home + "/.gdrive"
+	tokFile := tokDirectory + "/token.json"
 	if _, err := os.Stat(tokFile); os.IsNotExist(err) {
 		tok, err := tokenFromWeb(config)
 		if err != nil {
