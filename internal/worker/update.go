@@ -91,6 +91,12 @@ func (p *UploadService) UpdateWithVersion() error {
 	if err = f.Truncate(0); err != nil {
 		return err
 	}
+	version, err := strconv.Atoi(fmt.Sprintf("%v", p.OldInitData["version"]))
+	if err != nil {
+		return fmt.Errorf("failed to convert version to int: %v", err)
+	}
+	version++
+	p.OldInitData["version"] = version
 	err = json.NewEncoder(f).Encode(p.OldInitData)
 	if err != nil {
 		return err
