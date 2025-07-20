@@ -23,11 +23,17 @@ func main() {
 			utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
 		os.Exit(1)
 	}
+	oldMap := make(map[string]interface{})
+	newMap := make(map[string]interface{})
 	initData := &utils.Drive{
-		Data: make(map[string]interface{}),
+		OldInitData: oldMap,
 		Version: 0,
 		FolderId: "",
+		Service: service,
+		NewInitData: newMap,
 	}
+	stack := &utils.Stack[action.FolderStack]{}
+
 
 	if cmd.Create {
 		act = &action.InitAction{
@@ -49,8 +55,9 @@ func main() {
 		}
 		go func() {
 			act = &action.PushAction{
-				Drive:     initData,
+				InitData:     initData,
 				PathChan: pathChannel,
+				Stack: stack,
 			}
 			err := act.Action()
 			if err != nil {
@@ -64,7 +71,7 @@ func main() {
 		}
 	}
 
-	uploadService := &worker.UploadService{Service: service, Data: make(map[string]interface{})}
+	uploadService := &worker.UploadService{Service: service, NewInitData: newMap, OldInitData: oldMap, Stack: stack}
 	if cmd.Verbose {
 		log.Println("Starting upload workers...")
 	}
@@ -74,10 +81,10 @@ func main() {
 		go func() {
 			defer wg.Done()
 			for path := range pathChannel {
-				err := uploadService.Upload(path.Path, path.Version, path.Hash, path.IsChanged, path.FileId, initData.FolderId)
+				err := uploadService.UploadFile(path.Dir, path.Name, path.Version, path.Hash, path.IsChanged, path.FileId, path.FolderId)
 				if err != nil {
 					fmt.Printf("▶ %s%sFAILED:%s File %s%s%s could not be uploaded: %s%s%v%s",
-						utils.Yellow, utils.Bold, utils.Reset, utils.Cyan, path.Path, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+						utils.Yellow, utils.Bold, utils.Reset, utils.Cyan, path.Dir, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
 					continue
 				}
 			}

@@ -9,7 +9,7 @@ func (s *Stack[T]) Push(item T) {
 }
 
 func (s *Stack[T]) Pop() (T, bool) {
-	if s.isEmpty() {
+	if s.IsEmpty() {
 		var zero T
 		return zero, false
 	}
@@ -17,15 +17,15 @@ func (s *Stack[T]) Pop() (T, bool) {
 	s.items = s.items[:len(s.items)-1]
 	return item, true
 }
-func (s *Stack[T]) Peek() (T, bool) {
-	if s.isEmpty() {
-		var zero T
+func (s *Stack[T]) Peek() (*T, bool) {
+	if s.IsEmpty() {
+		var zero *T
 		return zero, false
 	}
 	item := s.items[len(s.items)-1]
-	return item, true
+	return &item, true
 }
 
-func (s *Stack[T]) isEmpty() bool {
+func (s *Stack[T]) IsEmpty() bool {
 	return len(s.items) == 0
 }

@@ -6,12 +6,16 @@ import (
 	"os"
 	"path"
 	"strconv"
+
+	"google.golang.org/api/drive/v3"
 )
 
 type Drive struct {
-	Data    map[string]interface{}
-	Version int
-	FolderId string
+	OldInitData map[string]interface{}
+	Version     int
+	FolderId    string
+	Service     *drive.Service
+	NewInitData map[string]interface{}
 }
 
 func (d *Drive) ExtractInitData() error {
@@ -30,14 +34,14 @@ func (d *Drive) ExtractInitData() error {
 		return err
 	}
 	defer file.Close()
-	err = json.NewDecoder(file).Decode(&d.Data)
+	err = json.NewDecoder(file).Decode(&d.OldInitData)
 	if err != nil {
 		return err
 	}
-	if d.Data == nil {
+	if d.OldInitData == nil {
 		return err
 	}
-	ver, ok := d.Data["version"]
+	ver, ok := d.OldInitData["version"]
 	if !ok {
 		return fmt.Errorf("version not found in init file")
 	}
@@ -46,11 +50,5 @@ func (d *Drive) ExtractInitData() error {
 		return err
 	}
 	d.Version = version
-
-	folderId, ok := d.Data["folderId"]
-	if !ok {
-		return fmt.Errorf("folderId not found in init file")
-	}
-	d.FolderId = folderId.(string)
 	return nil
 }

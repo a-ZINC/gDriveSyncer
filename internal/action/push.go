@@ -1,89 +1,168 @@
 package action
 
-import (	
+import (
 	"fmt"
 	"gdriveSync/cmd"
 	"gdriveSync/utils"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 )
 
 type Chann struct {
-	Path    string
-	Version int
-	Hash    string
+	Dir       string
+	Version   int
+	Hash      string
 	IsChanged bool
-	FileId string
+	FileId    string
+	Name      string
+	FolderId  string
+}
+
+type FolderStack struct {
+	FolderId  string
+	Directory string
 }
 
 type PushAction struct {
-	Drive     *utils.Drive
+	InitData *utils.Drive
 	PathChan chan *Chann
+	Stack    *utils.Stack[FolderStack]
 }
 
 func (p *PushAction) Action() error {
-	err := p.Drive.ExtractInitData()
+	err := p.InitData.ExtractInitData()
 	if err != nil {
 		return fmt.Errorf("failed to extract init data: %w", err)
 	}
-	curr_data := make(map[string]interface{})
-	if p.Drive.Version != 0 {
-		val, ok := utils.GetMap(p.Drive.Data, strconv.Itoa(p.Drive.Version))
-		if !ok {
-			return fmt.Errorf("version %d not found in init data", p.Drive.Version)
-		}
-		for k, v := range val {
-			curr_data[k] = v
-		}
+	version := strconv.Itoa(p.InitData.Version + 1)
+	_, ok := utils.GetMap(p.InitData.NewInitData, version)
+	if !ok {
+		p.InitData.NewInitData[version] = make(map[string]interface{})
 	}
-	p.WatchDirectory(curr_data, p.Drive.Version)
+	p.WatchDirectory(version)
 	return nil
 }
 
-func (p *PushAction) WatchDirectory(data map[string]interface{}, version int) {
+func (p *PushAction) WatchDirectory(version string) {
 	defer close(p.PathChan)
 	var (
 		pathFileId string
-		pathHash string
+		pathHash   string
 	)
 	if cmd.Verbose {
 		log.Println("Verbose mode enabled. Watching directory for changes...")
 	}
-	filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		if cmd.Verbose {
+			log.Printf("Error getting current directory: %v", err)
+		}
+		return
+	}
+	filepath.WalkDir(wd, func(fullPath string, d os.DirEntry, err error) error {
 		if err != nil {
 			if cmd.Verbose {
 				log.Printf("Error walking directory: %v", err)
 			}
 			return err
 		}
+		folder, _ := p.Stack.Peek()
+
 		if d.IsDir() {
-			if cmd.Verbose {
-				log.Printf("Skipping directory: %s", path)
+			folderId := ""
+			folder, ok := p.Stack.Peek()
+			if ok {
+				folderId = folder.FolderId
 			}
+			file, err := utils.CreateFolder(p.InitData.Service, d.Name(), folderId)
+			if err != nil {
+				if cmd.Verbose {
+					log.Printf("Error creating folder %s: %v", fullPath, err)
+				}
+				return err
+			}
+			fmt.Printf("📂 %s%sFolder created in InitData: %s%s%s\n",
+				utils.Green, utils.Bold, utils.Cyan, file.Name, utils.Reset)
+			if wd == fullPath {
+				newMap := utils.IfExistElseCreate(p.InitData.NewInitData, version)
+				val := utils.IfExistElseCreate(newMap, fullPath)
+				if val["folderId"] == nil {
+					val["folderId"] = file.Id
+				}
+			} else {
+				newMap, ok := utils.GetCurrentDirectoryMap(p.InitData.NewInitData, version, wd, fullPath)
+				if !ok {
+					log.Printf("Failed to get current directory map for %s", fullPath)
+					return fmt.Errorf("failed to get current directory map for %s", fullPath)
+				}
+				if newMap["folderId"] == nil {
+					newMap["folderId"] = file.Id
+				}
+			}
+			p.Stack.Push(FolderStack{
+				FolderId:  file.Id,
+				Directory: fullPath,
+			})
 			return nil
 		}
-		hash, err := utils.CreateHash(path)
+		directory := filepath.Dir(fullPath)
+		_, flag := p.PopIfDirectoryDiffer(directory)
+		if !flag {
+			log.Printf("Directory %s popped from stack.", directory)
+		}
+
+		hash, err := utils.CreateHash(fullPath)
 		if err != nil {
 			return err
 		}
 		if cmd.Verbose {
-			log.Printf("File: %s, Hash: %s", path, hash)
+			log.Printf("File: %s, Hash: %s", fullPath, hash)
 		}
-
-		fileMap, exists := utils.GetMap(data, path)
+		dir, file := path.Split(fullPath)
+		oldMap, exists := utils.GetCurrentDirectoryMap(p.InitData.OldInitData, version, wd, dir)
 		if exists {
-			pathFileId = fileMap["fileId"].(string)
-			pathHash = fileMap["hash"].(string)
+			pathHash, _ = oldMap[file].(string)
+			pathFileId, _ = oldMap[file].(string)
 		}
 		p.PathChan <- &Chann{
-			Path:    path,
-			Version: version,
-			Hash:    hash,
+			Dir:       dir,
+			Name:      d.Name(),
+			Version:   p.InitData.Version + 1,
+			Hash:      hash,
 			IsChanged: !exists || pathHash != hash,
-			FileId: pathFileId,
+			FileId:    pathFileId,
+			FolderId:  folder.FolderId,
 		}
 		return nil
 	})
+}
+
+func (p *PushAction) PopIfDirectoryDiffer(directory string) (*FolderStack, bool) {
+	if p.Stack.IsEmpty() {
+		return nil, false
+	}
+	for {
+		item, ok := p.Stack.Peek()
+		if !ok {
+			return nil, false
+		}
+		if item.Directory == directory {
+			if cmd.Verbose {
+				log.Printf("Directory %s matches stack top, not popping.", directory)
+			}
+			return item, true
+		}
+		if item.Directory != directory {
+			_, ok = p.Stack.Pop()
+			if !ok {
+				return nil, false
+			}
+		}
+		if cmd.Verbose {
+			log.Printf("Popped item: %s, Directory: %s", item.Directory, directory)
+		}
+	}
 }
