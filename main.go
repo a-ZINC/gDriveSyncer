@@ -86,33 +86,32 @@ func main() {
 		if cmd.Verbose {
 			log.Println("Push action completed.")
 		}
-	}
+		uploadService := &worker.UploadService{Service: service, NewInitData: newMap, OldInitData: oldMap, Stack: stack}
+		if cmd.Verbose {
+			log.Println("Starting upload workers...")
+		}
 
-	uploadService := &worker.UploadService{Service: service, NewInitData: newMap, OldInitData: oldMap, Stack: stack}
-	if cmd.Verbose {
-		log.Println("Starting upload workers...")
-	}
-
-	for i := 0; i < cmd.NumOfWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for path := range pathChannel {
-				err := uploadService.UploadFile(path.Dir, path.Name, path.Version, path.Hash, path.IsChanged, path.FileId, path.FolderId)
-				if err != nil {
-					fmt.Printf("▶ %s%sFAILED:%s File %s%s%s could not be uploaded: %s%s%v%s",
-						utils.Yellow, utils.Bold, utils.Reset, utils.Cyan, path.Dir, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
-					continue
+		for i := 0; i < cmd.NumOfWorkers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for path := range pathChannel {
+					err := uploadService.UploadFile(path.Dir, path.Name, path.Version, path.Hash, path.IsChanged, path.FileId, path.FolderId)
+					if err != nil {
+						fmt.Printf("▶ %s%sFAILED:%s File %s%s%s could not be uploaded: %s%s%v%s",
+							utils.Yellow, utils.Bold, utils.Reset, utils.Cyan, path.Dir, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+						continue
+					}
 				}
-			}
-		}()
-	}
-	wg.Wait()
-	fmt.Printf("✅ %s%sUpload completed.%s", utils.Green, utils.Bold, utils.Reset)
-	err = uploadService.UpdateWithVersion()
-	if err != nil {
-		fmt.Printf("⚠️  %s%sVERSION UPDATE FAILED:%s Could not update init file: %s%s%v%s",
-			utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
-		os.Exit(1)
+			}()
+		}
+		wg.Wait()
+		fmt.Printf("✅ %s%sUpload completed.%s", utils.Green, utils.Bold, utils.Reset)
+		err = uploadService.UpdateWithVersion()
+		if err != nil {
+			fmt.Printf("⚠️  %s%sVERSION UPDATE FAILED:%s Could not update init file: %s%s%v%s",
+				utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+			os.Exit(1)
+		}
 	}
 }
