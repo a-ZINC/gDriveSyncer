@@ -10,6 +10,11 @@ import (
 	"google.golang.org/api/option"
 )
 
+var DriveScope = []string{
+	drive.DriveScope,
+	"https://www.googleapis.com/auth/drive",
+}
+
 func DriveClient() (*drive.Service, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -23,7 +28,7 @@ func DriveClient() (*drive.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := google.ConfigFromJSON(data, drive.DriveFileScope)
+	cfg, err := google.ConfigFromJSON(data, DriveScope...)
 	if err != nil {
 		return nil, err
 	}

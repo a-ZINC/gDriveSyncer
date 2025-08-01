@@ -9,10 +9,30 @@ var (
 	Verbose bool
 )
 
+const (
+	ALL = 0
+	DRIVE = 1
+	SHARED = 2
+)
+
+var (
+	Show bool
+	Type int
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "gdriveSync",
 	Short: "Main command for the application",
 	Long:  `This command serves as the entry point for the gdriveSync application.`,
+}
+
+var listcmd = &cobra.Command{
+	Use:   "list",
+	Short: "List Google Drive files",
+	Long:  `This command lists all files in your Google Drive.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		Show = true
+	},
 }
 
 func init() {
@@ -20,6 +40,8 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&Create, "create", "c", false, "Create a new GDrive init file")
 	rootCmd.PersistentFlags().IntVarP(&NumOfWorkers, "workers", "w", 10, "Number of workers to use for uploading files")
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enable verbose logging")
+	listcmd.PersistentFlags().IntVarP(&Type, "type", "t", DRIVE, "Type of files to show (0: All, 1: Drive, 2: Shared)")
+	rootCmd.AddCommand(listcmd)
 }
 
 func Execute() error {

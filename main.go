@@ -10,6 +10,8 @@ import (
 	"log"
 	"os"
 	"sync"
+
+	"google.golang.org/api/drive/v3"
 )
 
 func main() {
@@ -112,6 +114,29 @@ func main() {
 			fmt.Printf("⚠️  %s%sVERSION UPDATE FAILED:%s Could not update init file: %s%s%v%s",
 				utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
 			os.Exit(1)
+		}
+	}
+
+	if cmd.Show {
+		if cmd.Verbose {
+			log.Println("List action initiated.")
+		}
+		act = &action.ListAction{
+			DriveService:  service,
+			FolderHandler: make(map[string][]string),
+			FileName:      make(map[string]*drive.File),
+			Shared:        []string{},
+			SharedFiles:   []string{},
+			SharedFolders: []string{},
+		}
+		err := act.Action()
+		if err != nil {
+			fmt.Printf("❌ %s%sERROR:%s List action failed: %s%s%v%s",
+				utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+			os.Exit(1)
+		}
+		if cmd.Verbose {
+			log.Println("List action completed.")
 		}
 	}
 }
