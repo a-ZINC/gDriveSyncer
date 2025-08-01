@@ -2,6 +2,7 @@ package action
 
 import (
 	"fmt"
+	"gdriveSync/cmd"
 	"gdriveSync/utils"
 
 	"google.golang.org/api/drive/v3"
@@ -26,51 +27,57 @@ func (p *ListAction) GetDriveFiles(query string) ([]*drive.File, error) {
 }
 
 func (p *ListAction) Action() error {
-	myDriveList, err := p.GetDriveFiles("'me' in owners and trashed = false")
-	if err != nil {
-		return err
-	}
-
-	rootFolder, err := p.DriveService.Files.Get("root").Fields("id", "name").Do()
-	if err != nil {
-		return err
-	}
-
-	for _, file := range myDriveList {
-		if file.SharedWithMeTime != "" {
-			p.Shared = append(p.Shared, file.Id)
+	if cmd.Type == cmd.DRIVE || cmd.Type == cmd.ALL {
+		myDriveList, err := p.GetDriveFiles("'me' in owners and trashed = false")
+		if err != nil {
+			return err
 		}
-		p.FileName[file.Id] = file
-		if len(file.Parents) != 0 {
-			parentId := file.Parents[0]
-			if _, exists := p.FolderHandler[parentId]; exists {
-				p.FolderHandler[parentId] = append(p.FolderHandler[parentId], file.Id)
-				continue
+
+		rootFolder, err := p.DriveService.Files.Get("root").Fields("id", "name").Do()
+		if err != nil {
+			return err
+		}
+
+		for _, file := range myDriveList {
+			if file.SharedWithMeTime != "" {
+				p.Shared = append(p.Shared, file.Id)
 			}
-			p.FolderHandler[parentId] = []string{file.Id}
+			p.FileName[file.Id] = file
+			if len(file.Parents) != 0 {
+				parentId := file.Parents[0]
+				if _, exists := p.FolderHandler[parentId]; exists {
+					p.FolderHandler[parentId] = append(p.FolderHandler[parentId], file.Id)
+					continue
+				}
+				p.FolderHandler[parentId] = []string{file.Id}
+			}
 		}
+		fmt.Printf("📁 %s%sMyDrive%s (%s)\n", utils.Blue, utils.Bold, utils.Reset, "root")
+		p.VisualizeFolders(rootFolder.Id, 0, "")
 	}
 
-	sharedList, err := p.GetDriveFiles("sharedWithMe = true and trashed = false")
-	if err != nil {
-		return err
+	if cmd.Type == cmd.ALL {
+		fmt.Printf("\n \n \n \n")
 	}
 
-	for _, file := range sharedList {
-		p.FileName[file.Id] = file
-		p.SharedFiles = append(p.SharedFiles, file.Id)
-		
-		if file.MimeType == "application/vnd.google-apps.folder" {
-			p.SharedFolders = append(p.SharedFolders, file.Id)
-			p.fetchSharedFolderContents(file.Id)
+	if cmd.Type == cmd.SHARED || cmd.Type == cmd.ALL {
+		sharedList, err := p.GetDriveFiles("sharedWithMe = true and trashed = false")
+		if err != nil {
+			return err
 		}
-	}
 
-	fmt.Printf("📁 %s%sMyDrive%s (%s)\n", utils.Blue, utils.Bold, utils.Reset, "root")
-	p.VisualizeFolders(rootFolder.Id, 0, "")
-	fmt.Printf("\n ----------------------------------------------------------------------------------\n")
-	fmt.Printf("\n📁 %s%sShared with me%s\n", utils.Blue, utils.Bold, utils.Reset)
-	p.DisplaySharedItems()
+		for _, file := range sharedList {
+			p.FileName[file.Id] = file
+			p.SharedFiles = append(p.SharedFiles, file.Id)
+
+			if file.MimeType == "application/vnd.google-apps.folder" {
+				p.SharedFolders = append(p.SharedFolders, file.Id)
+				p.fetchSharedFolderContents(file.Id)
+			}
+		}
+		fmt.Printf("\n📁 %s%sShared with me%s\n", utils.Blue, utils.Bold, utils.Reset)
+		p.DisplaySharedItems()
+	}
 
 	return nil
 }
@@ -81,7 +88,7 @@ func (p *ListAction) fetchSharedFolderContents(folderId string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	for _, file := range files {
 		p.FileName[file.Id] = file
 		p.FolderHandler[folderId] = append(p.FolderHandler[folderId], file.Id)
@@ -90,7 +97,7 @@ func (p *ListAction) fetchSharedFolderContents(folderId string) error {
 			p.fetchSharedFolderContents(file.Id)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -151,50 +158,49 @@ func (p *ListAction) VisualizeFolders(root string, level int, prefix string) {
 }
 
 func (p *ListAction) DisplaySharedItems() {
-    var sharedFolders, sharedFiles []*drive.File
-    
-    for _, fileId := range p.SharedFiles {
-        file := p.FileName[fileId]
-        if file.MimeType == "application/vnd.google-apps.folder" {
-            sharedFolders = append(sharedFolders, file)
-        } else {
-            sharedFiles = append(sharedFiles, file)
-        }
-    }
-    
-    totalItems := len(sharedFolders) + len(sharedFiles)
-    currentIndex := 0
-    
-    for _, folder := range sharedFolders {
-        isLast := currentIndex == totalItems-1
-        branch := "├── "
-        newPrefix := "│   "
-        if isLast {
-            branch = "└── "
-            newPrefix = "    "
-        }
-        
-        fmt.Printf("%s📁 %s%s%s%s (%s)\n", 
-            branch, utils.Green, utils.Bold, folder.Name, utils.Reset, folder.Id)
+	var sharedFolders, sharedFiles []*drive.File
 
-        p.VisualizeFolders(folder.Id, 0, newPrefix)
-        currentIndex++
-    }
-    
-    for _, file := range sharedFiles {
-        isLast := currentIndex == totalItems-1
-        branch := "├── "
-        if isLast {
-            branch = "└── "
-        }
-        
-        sizeLabel := ""
-        if file.Size > 0 {
-            sizeLabel = fmt.Sprintf(" %s[%s]%s", utils.Cyan, formatSize(file.Size), utils.Reset)
-        }
-        
-        fmt.Printf("%s📄 %s (%s)%s\n", branch, file.Name, file.Id, sizeLabel)
-        currentIndex++
-    }
+	for _, fileId := range p.SharedFiles {
+		file := p.FileName[fileId]
+		if file.MimeType == "application/vnd.google-apps.folder" {
+			sharedFolders = append(sharedFolders, file)
+		} else {
+			sharedFiles = append(sharedFiles, file)
+		}
+	}
+
+	totalItems := len(sharedFolders) + len(sharedFiles)
+	currentIndex := 0
+
+	for _, folder := range sharedFolders {
+		isLast := currentIndex == totalItems-1
+		branch := "├── "
+		newPrefix := "│   "
+		if isLast {
+			branch = "└── "
+			newPrefix = "    "
+		}
+
+		fmt.Printf("%s📁 %s%s%s%s (%s)\n",
+			branch, utils.Green, utils.Bold, folder.Name, utils.Reset, folder.Id)
+
+		p.VisualizeFolders(folder.Id, 0, newPrefix)
+		currentIndex++
+	}
+
+	for _, file := range sharedFiles {
+		isLast := currentIndex == totalItems-1
+		branch := "├── "
+		if isLast {
+			branch = "└── "
+		}
+
+		sizeLabel := ""
+		if file.Size > 0 {
+			sizeLabel = fmt.Sprintf(" %s[%s]%s", utils.Cyan, formatSize(file.Size), utils.Reset)
+		}
+
+		fmt.Printf("%s📄 %s (%s)%s\n", branch, file.Name, file.Id, sizeLabel)
+		currentIndex++
+	}
 }
-
