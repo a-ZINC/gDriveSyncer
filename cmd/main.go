@@ -10,14 +10,19 @@ var (
 )
 
 const (
-	ALL = 0
-	DRIVE = 1
-	SHARED = 2
+	ALL = iota
+	DRIVE
+	SHARED
 )
-
+const (
+	BOTH = iota
+	FOLDER
+	FILE
+)
 var (
 	Show bool
 	Type int
+	FileType int
 )
 
 var rootCmd = &cobra.Command{
@@ -41,6 +46,7 @@ func init() {
 	rootCmd.PersistentFlags().IntVarP(&NumOfWorkers, "workers", "w", 10, "Number of workers to use for uploading files")
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enable verbose logging")
 	listcmd.PersistentFlags().IntVarP(&Type, "type", "t", DRIVE, "Type of files to show (0: All, 1: Drive, 2: Shared)")
+	listcmd.PersistentFlags().IntVarP(&FileType, "file-type", "x", FOLDER, "Type of files to show (0: Both, 1: Folder, 2: File)")
 	rootCmd.AddCommand(listcmd)
 }
 

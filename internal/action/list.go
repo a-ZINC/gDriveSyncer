@@ -22,8 +22,33 @@ func (p *ListAction) GetDriveFiles(query string) ([]*drive.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	switch cmd.FileType {
+	case cmd.FOLDER:
+		files.Files = filterFolders(files.Files)
+	case cmd.FILE:
+		files.Files = filterFiles(files.Files)
+	}
 	return files.Files, nil
+}
 
+func filterFolders(files []*drive.File) []*drive.File {
+	var folders []*drive.File
+	for _, file := range files {
+		if file.MimeType == "application/vnd.google-apps.folder" {
+			folders = append(folders, file)
+		}
+	}
+	return folders
+}
+
+func filterFiles(files []*drive.File) []*drive.File {
+	var regularFiles []*drive.File
+	for _, file := range files {
+		if file.MimeType != "application/vnd.google-apps.folder" {
+			regularFiles = append(regularFiles, file)
+		}
+	}
+	return regularFiles
 }
 
 func (p *ListAction) Action() error {
@@ -57,7 +82,7 @@ func (p *ListAction) Action() error {
 	}
 
 	if cmd.Type == cmd.ALL {
-		fmt.Printf("\n \n \n \n")
+		fmt.Printf("\n \n")
 	}
 
 	if cmd.Type == cmd.SHARED || cmd.Type == cmd.ALL {
@@ -200,7 +225,7 @@ func (p *ListAction) DisplaySharedItems() {
 			sizeLabel = fmt.Sprintf(" %s[%s]%s", utils.Cyan, formatSize(file.Size), utils.Reset)
 		}
 
-		fmt.Printf("%s📄 %s (%s)%s\n", branch, file.Name, file.Id, sizeLabel)
+		fmt.Printf("%s📄 %s%s (%s)%s%s\n", branch, utils.Cyan, file.Name, file.Id, utils.Reset, sizeLabel)
 		currentIndex++
 	}
 }
