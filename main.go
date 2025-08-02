@@ -139,4 +139,28 @@ func main() {
 			log.Println("List action completed.")
 		}
 	}
+
+	if cmd.Search {
+		if cmd.SearchQuery == "" {
+			fmt.Printf("❌ %s%sERROR:%s Search query cannot be empty.\n", utils.Red, utils.Bold, utils.Reset)
+			os.Exit(1)
+		}
+		if cmd.Verbose {
+			fmt.Printf("🔍 %s%sSearching for files with query: %s%s%s\n", utils.Blue, utils.Bold, cmd.SearchQuery, utils.Reset, utils.Reset)
+		}
+		act = &action.SearchAction{
+			DriveService: service,
+			MyDriveList:   []*drive.File{},
+			SharedDriveList: []*drive.File{},
+		}
+		err := act.Action()
+		if err != nil {
+			fmt.Printf("❌ %s%sERROR:%s Search action failed: %s%s%v%s",
+				utils.Red, utils.Bold, utils.Reset, utils.Red, utils.Bold, err, utils.Reset)
+			os.Exit(1)
+		}
+		if cmd.Verbose {
+			log.Println("Search action completed.")
+		}
+	}
 }

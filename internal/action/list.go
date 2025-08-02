@@ -17,8 +17,9 @@ type ListAction struct {
 	SharedFolders []string
 }
 
-func (p *ListAction) GetDriveFiles(query string) ([]*drive.File, error) {
-	files, err := p.DriveService.Files.List().Q(query).Fields("nextPageToken, files(id, name, mimeType, parents, size)").PageSize(1000).Do()
+func GetDriveFiles(query string, driveService *drive.Service) ([]*drive.File, error) {
+	files, err := driveService.Files.List().Q(query).Fields("nextPageToken, files(id, name, mimeType, parents, size)").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).
+		PageSize(1000).Do()
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +54,7 @@ func filterFiles(files []*drive.File) []*drive.File {
 
 func (p *ListAction) Action() error {
 	if cmd.Type == cmd.DRIVE || cmd.Type == cmd.ALL {
-		myDriveList, err := p.GetDriveFiles("'me' in owners and trashed = false")
+		myDriveList, err := GetDriveFiles("'me' in owners and trashed = false", p.DriveService)
 		if err != nil {
 			return err
 		}
@@ -77,7 +78,7 @@ func (p *ListAction) Action() error {
 				p.FolderHandler[parentId] = []string{file.Id}
 			}
 		}
-		fmt.Printf("📁 %s%sMyDrive%s (%s)\n", utils.Blue, utils.Bold, utils.Reset, "root")
+		fmt.Printf("📁 %s%sMyDrive%s %s%s (%s) %s\n", utils.Blue, utils.Bold, utils.Reset, utils.Yellow, "root", rootFolder.Id, utils.Reset)
 		p.VisualizeFolders(rootFolder.Id, 0, "")
 	}
 
@@ -86,7 +87,7 @@ func (p *ListAction) Action() error {
 	}
 
 	if cmd.Type == cmd.SHARED || cmd.Type == cmd.ALL {
-		sharedList, err := p.GetDriveFiles("sharedWithMe = true and trashed = false")
+		sharedList, err := GetDriveFiles("sharedWithMe = true and trashed = false", p.DriveService)
 		if err != nil {
 			return err
 		}
@@ -109,7 +110,7 @@ func (p *ListAction) Action() error {
 
 func (p *ListAction) fetchSharedFolderContents(folderId string) error {
 	query := fmt.Sprintf("'%s' in parents and trashed = false", folderId)
-	files, err := p.GetDriveFiles(query)
+	files, err := GetDriveFiles(query, p.DriveService)
 	if err != nil {
 		return err
 	}
