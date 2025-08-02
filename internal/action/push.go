@@ -74,6 +74,8 @@ func (p *PushAction) WatchDirectory(version string) {
 		folder, _ := p.Stack.Peek()
 
 		if d.IsDir() {
+			parentDir := filepath.Dir(fullPath)
+            p.PopIfDirectoryDiffer(parentDir)
 			p.FolderCreate(fullPath, version, wd, d)
 			return nil
 		}
