@@ -49,7 +49,10 @@ func (p *PushAction) Action() error {
 }
 
 func (p *PushAction) WatchDirectory(version string) {
-	defer close(p.PathChan)
+	defer func() {
+		recover()
+		close(p.PathChan)
+	}()
 	var (
 		pathFileId string
 		pathHash   string
@@ -71,11 +74,16 @@ func (p *PushAction) WatchDirectory(version string) {
 			}
 			return err
 		}
-		folder, _ := p.Stack.Peek()
+		folder, ok := p.Stack.Peek()
+		folderId := ""
+		if ok && folder != nil {
+			folderId = folder.FolderId
+		}
+
 
 		if d.IsDir() {
 			parentDir := filepath.Dir(fullPath)
-            p.PopIfDirectoryDiffer(parentDir)
+			p.PopIfDirectoryDiffer(parentDir)
 			p.FolderCreate(fullPath, version, wd, d)
 			return nil
 		}
@@ -86,6 +94,10 @@ func (p *PushAction) WatchDirectory(version string) {
 			if cmd.Verbose {
 				log.Printf("Directory %s not found in stack, skipping file %s", directory, fullPath)
 			}
+		}
+		folder, ok = p.Stack.Peek()
+		if ok && folder != nil {
+			folderId = folder.FolderId
 		}
 
 		hash, err := utils.CreateHash(fullPath)
@@ -110,7 +122,7 @@ func (p *PushAction) WatchDirectory(version string) {
 			Hash:      hash,
 			IsChanged: !exists || pathHash != hash,
 			FileId:    pathFileId,
-			FolderId:  folder.FolderId,
+			FolderId:  folderId,
 		}
 		return nil
 	})
