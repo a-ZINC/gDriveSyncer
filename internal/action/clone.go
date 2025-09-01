@@ -1,9 +1,14 @@
 package action
 
+import "google.golang.org/api/drive/v3"
+
 type CloneAction struct {
+	DriveService *drive.Service
+	Destination string
+	FolderId string
 }
 
 func (p *CloneAction) Action() error {
-	// Implementation for cloning action
+	p.DriveService.Files.List()
 	return nil
 }
